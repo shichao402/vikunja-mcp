@@ -1,0 +1,51 @@
+{
+  "name": "@shichao402/vikunja-mcp",
+  "version": "0.1.0",
+  "description": "A Vikunja MCP server for stdio and npx usage.",
+  "type": "module",
+  "license": "MIT",
+  "author": "shichao402",
+  "bin": {
+    "vikunja-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shichao402/vikunja-mcp.git"
+  },
+  "homepage": "https://github.com/shichao402/vikunja-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/shichao402/vikunja-mcp/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "vikunja",
+    "stdio",
+    "npx"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.2"
+  }
+}
