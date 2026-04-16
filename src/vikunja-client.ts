@@ -153,7 +153,7 @@ export class VikunjaClient {
 
     const headers: Record<string, string> = {
       Accept: "application/json",
-      "User-Agent": "vikunja-mcp-stdio"
+      "User-Agent": "vikunja-mcp"
     };
 
     if (auth) {

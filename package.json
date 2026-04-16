@@ -1,6 +1,6 @@
 {
   "name": "@shichao402/vikunja-mcp",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A Vikunja MCP server for stdio and npx usage.",
   "type": "module",
   "license": "MIT",
@@ -34,6 +34,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test test/*.test.mjs",
     "prepare": "npm run build",
     "prepublishOnly": "npm run build"
   },

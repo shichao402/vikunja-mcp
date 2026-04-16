@@ -1,12 +1,24 @@
 #!/usr/bin/env node
 
+import { readFileSync } from "node:fs";
+
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
 import { VikunjaClient, VikunjaConfigError } from "./vikunja-client.js";
 
-const HELP_TEXT = `@shichao402/vikunja-mcp
+const packageMetadata = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8")
+) as {
+  name?: string;
+  version?: string;
+};
+
+const packageName = packageMetadata.name ?? "@shichao402/vikunja-mcp";
+const packageVersion = packageMetadata.version ?? "0.0.0";
+
+const HELP_TEXT = `${packageName}
 
 Environment variables:
   VIKUNJA_BASE_URL   Vikunja instance URL, for example https://vikunja.example.com
@@ -18,7 +30,7 @@ Environment variables:
   VIKUNJA_LONG_TOKEN Optional, true/false for long-lived self-hosted login token
 
 Examples:
-  VIKUNJA_BASE_URL=https://vikunja.example.com VIKUNJA_API_TOKEN=xxx npx -y @shichao402/vikunja-mcp
+  VIKUNJA_BASE_URL=https://vikunja.example.com VIKUNJA_API_TOKEN=xxx npx -y ${packageName}
 `;
 
 const args = new Set(process.argv.slice(2));
@@ -38,7 +50,7 @@ const client = new VikunjaClient({
 
 const server = new McpServer({
   name: "vikunja-mcp",
-  version: "0.1.0"
+  version: packageVersion
 });
 
 const commonListSchema = {
