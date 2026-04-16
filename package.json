@@ -5,9 +5,7 @@
   "type": "module",
   "license": "MIT",
   "author": "shichao402",
-  "bin": {
-    "vikunja-mcp": "./dist/index.js"
-  },
+  "bin": "./dist/index.js",
   "files": [
     "dist",
     "README.md",
