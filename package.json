@@ -1,11 +1,10 @@
 {
   "name": "@shichao402/vikunja-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A Vikunja MCP server for stdio and npx usage.",
   "type": "module",
   "license": "MIT",
   "author": "shichao402",
-  "bin": "./dist/index.js",
   "files": [
     "dist",
     "README.md",
@@ -45,5 +44,8 @@
   "devDependencies": {
     "@types/node": "^25.6.0",
     "typescript": "^6.0.2"
+  },
+  "bin": {
+    "vikunja-mcp": "dist/index.js"
   }
 }
