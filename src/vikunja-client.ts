@@ -1,11 +1,11 @@
 type PrimitiveQueryValue = string | number | boolean;
 
+type JsonRecord = Record<string, unknown>;
+
 export type QueryParams = Record<
   string,
   PrimitiveQueryValue | PrimitiveQueryValue[] | undefined
 >;
-
-type JsonRecord = Record<string, unknown>;
 
 export interface VikunjaConfig {
   baseUrl: string;
@@ -14,6 +14,29 @@ export interface VikunjaConfig {
   password?: string;
   totpPasscode?: string;
   longToken?: boolean;
+}
+
+export interface MultipartFileInput {
+  filename: string;
+  contentBase64: string;
+  contentType?: string;
+}
+
+export interface BinaryResponse {
+  kind: "binary";
+  contentType: string;
+  contentDisposition?: string;
+  filename?: string;
+  size: number;
+  contentBase64: string;
+}
+
+export interface RequestOptions {
+  query?: QueryParams;
+  body?: unknown;
+  form?: Record<string, unknown>;
+  auth?: boolean;
+  retryOnUnauthorized?: boolean;
 }
 
 export class VikunjaConfigError extends Error {
@@ -45,13 +68,6 @@ export class VikunjaApiError extends Error {
   }
 }
 
-export interface RequestOptions {
-  query?: QueryParams;
-  body?: unknown;
-  auth?: boolean;
-  retryOnUnauthorized?: boolean;
-}
-
 export class VikunjaClient {
   private readonly config: VikunjaConfig;
   private readonly baseUrl: URL;
@@ -63,83 +79,91 @@ export class VikunjaClient {
   }
 
   async getServerInfo(): Promise<unknown> {
-    return this.request("GET", "/info", { auth: false });
+    return this.rawRequest("GET", "/info", { auth: false });
   }
 
   async getCurrentUser(): Promise<unknown> {
-    return this.request("GET", "/user");
+    return this.rawRequest("GET", "/user");
   }
 
   async listProjects(query?: QueryParams): Promise<unknown> {
-    return this.request("GET", "/projects", { query });
+    return this.rawRequest("GET", "/projects", { query });
   }
 
   async getProject(projectId: number): Promise<unknown> {
-    return this.request("GET", `/projects/${projectId}`);
+    return this.rawRequest("GET", `/projects/${projectId}`);
   }
 
   async createProject(project: JsonRecord): Promise<unknown> {
-    return this.request("PUT", "/projects", { body: project });
+    return this.rawRequest("PUT", "/projects", { body: project });
   }
 
   async updateProject(projectId: number, project: JsonRecord): Promise<unknown> {
-    return this.request("POST", `/projects/${projectId}`, { body: project });
+    return this.rawRequest("POST", `/projects/${projectId}`, { body: project });
   }
 
   async deleteProject(projectId: number): Promise<unknown> {
-    return this.request("DELETE", `/projects/${projectId}`);
+    return this.rawRequest("DELETE", `/projects/${projectId}`);
   }
 
   async listTasks(query?: QueryParams): Promise<unknown> {
-    return this.request("GET", "/tasks", { query });
+    return this.rawRequest("GET", "/tasks", { query });
   }
 
   async getTask(taskId: number, query?: QueryParams): Promise<unknown> {
-    return this.request("GET", `/tasks/${taskId}`, { query });
+    return this.rawRequest("GET", `/tasks/${taskId}`, { query });
   }
 
   async createTask(projectId: number, task: JsonRecord): Promise<unknown> {
-    return this.request("PUT", `/projects/${projectId}/tasks`, { body: task });
+    return this.rawRequest("PUT", `/projects/${projectId}/tasks`, { body: task });
   }
 
   async updateTask(taskId: number, task: JsonRecord): Promise<unknown> {
-    return this.request("POST", `/tasks/${taskId}`, { body: task });
+    return this.rawRequest("POST", `/tasks/${taskId}`, { body: task });
   }
 
   async deleteTask(taskId: number): Promise<unknown> {
-    return this.request("DELETE", `/tasks/${taskId}`);
+    return this.rawRequest("DELETE", `/tasks/${taskId}`);
   }
 
   async listLabels(query?: QueryParams): Promise<unknown> {
-    return this.request("GET", "/labels", { query });
+    return this.rawRequest("GET", "/labels", { query });
   }
 
   async createLabel(label: JsonRecord): Promise<unknown> {
-    return this.request("PUT", "/labels", { body: label });
+    return this.rawRequest("PUT", "/labels", { body: label });
   }
 
   async listTaskLabels(taskId: number, query?: QueryParams): Promise<unknown> {
-    return this.request("GET", `/tasks/${taskId}/labels`, { query });
+    return this.rawRequest("GET", `/tasks/${taskId}/labels`, { query });
   }
 
   async addLabelToTask(taskId: number, labelId: number): Promise<unknown> {
-    return this.request("PUT", `/tasks/${taskId}/labels`, {
+    return this.rawRequest("PUT", `/tasks/${taskId}/labels`, {
       body: { label_id: labelId }
     });
   }
 
   async removeLabelFromTask(taskId: number, labelId: number): Promise<unknown> {
-    return this.request("DELETE", `/tasks/${taskId}/labels/${labelId}`);
+    return this.rawRequest("DELETE", `/tasks/${taskId}/labels/${labelId}`);
   }
 
   async listTaskComments(taskId: number, query?: QueryParams): Promise<unknown> {
-    return this.request("GET", `/tasks/${taskId}/comments`, { query });
+    return this.rawRequest("GET", `/tasks/${taskId}/comments`, { query });
   }
 
   async createTaskComment(taskId: number, comment: string): Promise<unknown> {
-    return this.request("PUT", `/tasks/${taskId}/comments`, {
+    return this.rawRequest("PUT", `/tasks/${taskId}/comments`, {
       body: { comment }
     });
+  }
+
+  async rawRequest(
+    method: string,
+    path: string,
+    options: RequestOptions = {}
+  ): Promise<unknown> {
+    return this.request(method, path, options);
   }
 
   private async request(
@@ -152,7 +176,7 @@ export class VikunjaClient {
     const url = buildApiUrl(this.baseUrl, path, options.query);
 
     const headers: Record<string, string> = {
-      Accept: "application/json",
+      Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
       "User-Agent": "vikunja-mcp"
     };
 
@@ -160,14 +184,12 @@ export class VikunjaClient {
       headers.Authorization = `Bearer ${await this.getAccessToken()}`;
     }
 
-    if (options.body !== undefined) {
-      headers["Content-Type"] = "application/json";
-    }
+    const requestBody = buildRequestBody(options, headers);
 
     const response = await fetch(url, {
       method,
       headers,
-      body: options.body === undefined ? undefined : JSON.stringify(options.body)
+      body: requestBody
     });
 
     const parsed = await parseResponse(response);
@@ -246,6 +268,97 @@ export class VikunjaClient {
   }
 }
 
+function buildRequestBody(
+  options: RequestOptions,
+  headers: Record<string, string>
+): BodyInit | undefined {
+  if (options.form && options.body !== undefined) {
+    throw new VikunjaConfigError(
+      "A Vikunja request cannot send JSON body and multipart form data at the same time."
+    );
+  }
+
+  if (options.form) {
+    return buildFormData(options.form);
+  }
+
+  if (options.body === undefined) {
+    return undefined;
+  }
+
+  headers["Content-Type"] = "application/json";
+
+  if (typeof options.body === "string") {
+    return options.body;
+  }
+
+  return JSON.stringify(options.body);
+}
+
+function buildFormData(fields: Record<string, unknown>): FormData {
+  const formData = new FormData();
+
+  for (const [name, value] of Object.entries(fields)) {
+    appendFormValue(formData, name, value);
+  }
+
+  return formData;
+}
+
+function appendFormValue(
+  formData: FormData,
+  name: string,
+  value: unknown
+): void {
+  if (value === undefined) {
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      appendFormValue(formData, name, item);
+    }
+    return;
+  }
+
+  if (isMultipartFileInput(value)) {
+    const fileBuffer = Buffer.from(value.contentBase64, "base64");
+    const blob = new Blob([fileBuffer], {
+      type: value.contentType ?? "application/octet-stream"
+    });
+    formData.append(name, blob, value.filename);
+    return;
+  }
+
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    formData.append(name, String(value));
+    return;
+  }
+
+  if (value === null) {
+    formData.append(name, "null");
+    return;
+  }
+
+  formData.append(name, JSON.stringify(value));
+}
+
+function isMultipartFileInput(value: unknown): value is MultipartFileInput {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.filename === "string" &&
+    typeof candidate.contentBase64 === "string"
+  );
+}
+
 function normalizeBaseUrl(input: string): URL {
   const trimmed = input.trim();
   if (trimmed.length === 0) {
@@ -280,7 +393,7 @@ function buildApiUrl(baseUrl: URL, path: string, query?: QueryParams): URL {
   const url = new URL(baseUrl.toString());
   const basePath = url.pathname.replace(/\/+$/, "");
   const requestPath = path.replace(/^\/+/, "");
-  url.pathname = `${basePath}/api/v1/${requestPath}`.replace(/\/+/g, "/");
+  url.pathname = `${basePath}/api/v1/${requestPath}`.replace(/\/+?/g, "/");
   url.search = "";
 
   if (query) {
@@ -304,12 +417,26 @@ function buildApiUrl(baseUrl: URL, path: string, query?: QueryParams): URL {
 }
 
 async function parseResponse(response: Response): Promise<unknown> {
-  const text = await response.text();
-  if (text.length === 0) {
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (buffer.length === 0) {
     return {};
   }
 
   const contentType = response.headers.get("content-type") ?? "";
+  const contentDisposition = response.headers.get("content-disposition") ?? undefined;
+
+  if (isBinaryResponse(contentType, contentDisposition)) {
+    return {
+      kind: "binary",
+      contentType: contentType || "application/octet-stream",
+      contentDisposition,
+      filename: extractFilename(contentDisposition),
+      size: buffer.length,
+      contentBase64: buffer.toString("base64")
+    } satisfies BinaryResponse;
+  }
+
+  const text = buffer.toString("utf8");
   if (contentType.includes("application/json")) {
     try {
       return JSON.parse(text) as unknown;
@@ -323,6 +450,57 @@ async function parseResponse(response: Response): Promise<unknown> {
   } catch {
     return text;
   }
+}
+
+function isBinaryResponse(
+  contentType: string,
+  contentDisposition: string | undefined
+): boolean {
+  if (contentDisposition && /filename\*?=/i.test(contentDisposition)) {
+    return true;
+  }
+
+  const normalized = contentType.toLowerCase();
+  if (normalized.length === 0) {
+    return false;
+  }
+
+  if (normalized.includes("application/json")) {
+    return false;
+  }
+
+  if (normalized.startsWith("text/")) {
+    return false;
+  }
+
+  if (
+    normalized.includes("xml") ||
+    normalized.includes("yaml") ||
+    normalized.includes("javascript") ||
+    normalized.includes("svg")
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function extractFilename(contentDisposition: string | undefined): string | undefined {
+  if (!contentDisposition) {
+    return undefined;
+  }
+
+  const encodedMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (encodedMatch?.[1]) {
+    try {
+      return decodeURIComponent(encodedMatch[1]);
+    } catch {
+      return encodedMatch[1];
+    }
+  }
+
+  const plainMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
+  return plainMatch?.[1];
 }
 
 function buildApiErrorMessage(

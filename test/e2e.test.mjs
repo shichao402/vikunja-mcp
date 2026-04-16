@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { once } from "node:events";
 import http from "node:http";
 import test from "node:test";
@@ -6,13 +7,19 @@ import test from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
+import {
+  countSwaggerOperations,
+  getGeneratedToolSpecs,
+  getParameterInputNames
+} from "../dist/swagger.js";
+
 const API_TOKEN = "test-api-token";
 const LOGIN_TOKEN = "test-login-token";
 const USERNAME = "demo-user";
 const PASSWORD = "demo-password";
 const TOTP = "123456";
 
-const TOOL_NAMES = [
+const LEGACY_TOOL_NAMES = [
   "vikunja_get_server_info",
   "vikunja_get_current_user",
   "vikunja_list_projects",
@@ -34,7 +41,24 @@ const TOOL_NAMES = [
   "vikunja_create_task_comment"
 ];
 
-test("all implemented MCP tools work over stdio with API token auth", async t => {
+const swaggerDocument = JSON.parse(
+  readFileSync(new URL("../src/vikunja-docs.json", import.meta.url), "utf8")
+);
+const GENERATED_TOOL_SPECS = getGeneratedToolSpecs(swaggerDocument);
+const GENERATED_TOOL_NAMES = GENERATED_TOOL_SPECS.map(spec => spec.toolName);
+const ALL_TOOL_NAMES = [...new Set([...LEGACY_TOOL_NAMES, ...GENERATED_TOOL_NAMES])];
+const PUBLIC_GENERATED_TOOLS = GENERATED_TOOL_SPECS.filter(
+  spec => !spec.authRequired
+).map(spec => spec.toolName);
+const BINARY_PATHS = new Set([
+  "/backgrounds/unsplash/image/{image}",
+  "/backgrounds/unsplash/image/{image}/thumb",
+  "/projects/{id}/background",
+  "/tasks/{id}/attachments/{attachmentID}",
+  "/{username}/avatar"
+]);
+
+test("legacy ergonomic tools still work over stdio with API token auth", async t => {
   const mock = await startMockVikunjaServer();
   const mcp = await startMcpClient({
     VIKUNJA_BASE_URL: mock.baseUrl,
@@ -48,8 +72,11 @@ test("all implemented MCP tools work over stdio with API token auth", async t =>
 
   const tools = await mcp.client.listTools();
   assert.deepEqual(
-    tools.tools.map(tool => tool.name).sort(),
-    [...TOOL_NAMES].sort()
+    tools.tools
+      .map(tool => tool.name)
+      .filter(name => LEGACY_TOOL_NAMES.includes(name))
+      .sort(),
+    [...LEGACY_TOOL_NAMES].sort()
   );
 
   const serverInfo = await callToolJson(mcp.client, "vikunja_get_server_info");
@@ -326,6 +353,121 @@ test("all implemented MCP tools work over stdio with API token auth", async t =>
   assert.equal(mcp.stderr.trim(), "");
 });
 
+test("generated raw tools are registered for every swagger operation and route correctly", async t => {
+  assert.equal(GENERATED_TOOL_SPECS.length, countSwaggerOperations(swaggerDocument));
+
+  const mock = await startMockVikunjaServer();
+  const mcp = await startMcpClient({
+    VIKUNJA_BASE_URL: mock.baseUrl,
+    VIKUNJA_API_TOKEN: API_TOKEN
+  });
+
+  t.after(async () => {
+    await mcp.close();
+    await mock.close();
+  });
+
+  const tools = await mcp.client.listTools();
+  assert.deepEqual(
+    tools.tools.map(tool => tool.name).sort(),
+    [...ALL_TOOL_NAMES].sort()
+  );
+
+  for (const spec of GENERATED_TOOL_SPECS) {
+    const args = buildGeneratedArgs(spec);
+    const previousRequestCount = mock.requests.length;
+    const result = await callToolJson(mcp.client, spec.toolName, args);
+    const request = mock.requests[previousRequestCount];
+
+    assert.ok(request, `No request captured for ${spec.toolName}`);
+    assert.equal(request.method, spec.method, `Unexpected method for ${spec.toolName}`);
+    assert.equal(
+      request.path,
+      buildExpectedApiPath(spec, args),
+      `Unexpected path for ${spec.toolName}`
+    );
+    assert.equal(
+      request.auth,
+      spec.authRequired ? `Bearer ${API_TOKEN}` : null,
+      `Unexpected auth header for ${spec.toolName}`
+    );
+    assert.deepEqual(
+      request.query,
+      buildExpectedQuery(spec, args),
+      `Unexpected query for ${spec.toolName}`
+    );
+
+    if (spec.formParameters.length > 0) {
+      assert.match(
+        request.contentType ?? "",
+        /^multipart\/form-data; boundary=/,
+        `Expected multipart content-type for ${spec.toolName}`
+      );
+      verifyMultipartBody(spec, request.rawBody, args);
+    } else if (args.body !== undefined) {
+      assert.match(
+        request.contentType ?? "",
+        /^application\/json/,
+        `Expected JSON content-type for ${spec.toolName}`
+      );
+      assert.deepEqual(request.body, args.body, `Unexpected JSON body for ${spec.toolName}`);
+    } else {
+      assert.equal(request.body, null, `Expected no body for ${spec.toolName}`);
+    }
+
+    if (isBinarySpec(spec)) {
+      assert.equal(result.kind, "binary", `Expected binary result for ${spec.toolName}`);
+      assert.equal(typeof result.contentBase64, "string");
+      assert.ok(result.contentBase64.length > 0);
+      continue;
+    }
+
+    assert.equal(result.method, spec.method, `Unexpected echoed method for ${spec.toolName}`);
+    assert.equal(result.path, request.path, `Unexpected echoed path for ${spec.toolName}`);
+  }
+
+  assert.equal(mcp.stderr.trim(), "");
+});
+
+test("raw public tools skip auth while protected raw tools still require credentials", async t => {
+  const mock = await startMockVikunjaServer();
+  const unauthenticated = await startMcpClient({
+    VIKUNJA_BASE_URL: mock.baseUrl
+  });
+
+  t.after(async () => {
+    await unauthenticated.close();
+    await mock.close();
+  });
+
+  for (const toolName of PUBLIC_GENERATED_TOOLS) {
+    const spec = GENERATED_TOOL_SPECS.find(candidate => candidate.toolName === toolName);
+    assert.ok(spec, `Missing generated spec for ${toolName}`);
+    const result = await callToolJson(
+      unauthenticated.client,
+      toolName,
+      buildGeneratedArgs(spec)
+    );
+
+    if (isBinarySpec(spec)) {
+      assert.equal(result.kind, "binary");
+    }
+  }
+
+  const protectedTool = GENERATED_TOOL_SPECS.find(spec => spec.authRequired);
+  assert.ok(protectedTool, "Expected at least one authenticated generated tool");
+
+  const failure = await unauthenticated.client.callTool({
+    name: protectedTool.toolName,
+    arguments: buildGeneratedArgs(protectedTool)
+  });
+
+  assert.equal(failure.isError, true);
+  const textBlock = failure.content.find(block => block.type === "text");
+  assert.ok(textBlock);
+  assert.match(textBlock.text, /Authentication is required/);
+});
+
 test("self-hosted login flow logs in once and reuses the JWT", async t => {
   const mock = await startMockVikunjaServer();
   const mcp = await startMcpClient({
@@ -434,13 +576,17 @@ async function startMockVikunjaServer() {
   const server = http.createServer(async (req, res) => {
     const method = req.method ?? "GET";
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
-    const body = await readRequestBody(req);
+    const { body, rawBody } = await readRequestBody(req);
     const request = {
       method,
       path: url.pathname,
       query: searchParamsToObject(url.searchParams),
       body,
-      auth: req.headers.authorization ?? null
+      rawBody,
+      auth: req.headers.authorization ?? null,
+      contentType: typeof req.headers["content-type"] === "string"
+        ? req.headers["content-type"]
+        : null
     };
 
     requests.push(request);
@@ -453,20 +599,23 @@ async function startMockVikunjaServer() {
     }
 
     if (method === "POST" && url.pathname === "/api/v1/login") {
-      return json(res, 200, { token: LOGIN_TOKEN });
+      return json(res, 200, { token: LOGIN_TOKEN, ...request });
     }
 
-    if (!isAuthorized(request.auth)) {
+    if (!isPublicRoute(method, url.pathname) && !isAuthorized(request.auth)) {
       return json(res, 401, { message: "Unauthorized" });
     }
 
-    const endpoint = resolveEndpoint(method, url.pathname);
-    if (!endpoint) {
-      return json(res, 404, { message: `Unhandled route ${method} ${url.pathname}` });
+    if (isBinaryRoute(method, url.pathname)) {
+      return binary(res, {
+        contentType: detectBinaryContentType(url.pathname),
+        filename: detectBinaryFilename(url.pathname),
+        body: Buffer.from(`binary:${method}:${url.pathname}`, "utf8")
+      });
     }
 
     return json(res, 200, {
-      endpoint,
+      endpoint: resolveLegacyEndpoint(method, url.pathname),
       ...request
     });
   });
@@ -525,7 +674,7 @@ function isAuthorized(auth) {
   return auth === `Bearer ${API_TOKEN}` || auth === `Bearer ${LOGIN_TOKEN}`;
 }
 
-function resolveEndpoint(method, path) {
+function resolveLegacyEndpoint(method, path) {
   if (method === "GET" && path === "/api/v1/user") return "get_current_user";
   if (method === "GET" && path === "/api/v1/projects") return "list_projects";
   if (method === "PUT" && path === "/api/v1/projects") return "create_project";
@@ -548,23 +697,329 @@ function resolveEndpoint(method, path) {
   return null;
 }
 
+function buildGeneratedArgs(spec) {
+  const args = {};
+
+  for (const parameter of spec.pathParameters) {
+    args[getPreferredArgumentName(parameter.name)] = buildScalarSample(parameter.name, parameter.type);
+  }
+
+  for (const parameter of spec.queryParameters) {
+    args[getPreferredArgumentName(parameter.name)] = buildQuerySample(parameter.name, parameter.type);
+  }
+
+  if (spec.formParameters.length > 0) {
+    args.form = Object.fromEntries(
+      spec.formParameters.map(parameter => [
+        parameter.name,
+        buildFormSample(parameter.name, parameter.type)
+      ])
+    );
+  } else if (spec.bodyParameter?.required || ["PUT", "POST", "PATCH"].includes(spec.method)) {
+    args.body = buildBodySample(spec);
+  }
+
+  return args;
+}
+
+function getPreferredArgumentName(parameterName) {
+  const aliases = getParameterInputNames(parameterName);
+  return aliases[aliases.length - 1] ?? parameterName;
+}
+
+function buildScalarSample(name, type) {
+  const lowerName = name.toLowerCase();
+
+  if (type === "integer") {
+    return 7;
+  }
+
+  if (type === "number") {
+    return 1.5;
+  }
+
+  if (type === "boolean") {
+    return true;
+  }
+
+  if (lowerName === "relationkind") {
+    return "related";
+  }
+
+  if (lowerName === "provider") {
+    return "oidc";
+  }
+
+  if (lowerName === "kind") {
+    return "tasks";
+  }
+
+  if (lowerName === "entity") {
+    return "project";
+  }
+
+  if (lowerName === "table") {
+    return "tasks";
+  }
+
+  if (lowerName === "username") {
+    return "demo-user";
+  }
+
+  if (lowerName === "share") {
+    return "sharehash";
+  }
+
+  if (lowerName === "image") {
+    return "image-id";
+  }
+
+  return `${name}-value`;
+}
+
+function buildQuerySample(name, type) {
+  const lowerName = name.toLowerCase();
+
+  if (lowerName === "sort_by") {
+    return ["id", "title"];
+  }
+
+  if (lowerName === "expand") {
+    return ["subtasks", "comments"];
+  }
+
+  if (lowerName === "order_by") {
+    return "desc";
+  }
+
+  if (lowerName === "preview_size") {
+    return "sm";
+  }
+
+  if (lowerName === "filter") {
+    return "done = false";
+  }
+
+  if (lowerName === "filter_timezone") {
+    return "Asia/Shanghai";
+  }
+
+  if (lowerName === "s") {
+    return "search-term";
+  }
+
+  if (type === "integer") {
+    return 2;
+  }
+
+  if (type === "number") {
+    return 2.5;
+  }
+
+  if (type === "boolean") {
+    return true;
+  }
+
+  return `${name}-query`;
+}
+
+function buildFormSample(name, type) {
+  const lowerName = name.toLowerCase();
+
+  if (
+    type === "file" ||
+    lowerName === "files" ||
+    lowerName === "background" ||
+    lowerName === "avatar" ||
+    lowerName === "import"
+  ) {
+    const file = {
+      filename: `${name}.txt`,
+      contentBase64: Buffer.from(`${name}-file-content`, "utf8").toString("base64"),
+      contentType: "text/plain"
+    };
+
+    return lowerName === "files" ? [file, { ...file, filename: `${name}-2.txt` }] : file;
+  }
+
+  if (lowerName === "config") {
+    return JSON.stringify({ sample: true, field: name });
+  }
+
+  return `${name}-form`;
+}
+
+function buildBodySample(spec) {
+  return {
+    tool: spec.toolName,
+    method: spec.method,
+    path: spec.path
+  };
+}
+
+function buildExpectedApiPath(spec, args) {
+  let path = spec.path;
+
+  for (const parameter of spec.pathParameters) {
+    const value = readArgumentValue(args, parameter.name);
+    path = path.replace(`{${parameter.name}}`, encodeURIComponent(String(value)));
+  }
+
+  return `/api/v1${path}`;
+}
+
+function buildExpectedQuery(spec, args) {
+  const query = {};
+
+  for (const parameter of spec.queryParameters) {
+    const value = readArgumentValue(args, parameter.name);
+    if (value === undefined) {
+      continue;
+    }
+
+    if (Array.isArray(value)) {
+      query[parameter.name] = value.map(item => String(item));
+      continue;
+    }
+
+    query[parameter.name] = String(value);
+  }
+
+  return query;
+}
+
+function readArgumentValue(args, parameterName) {
+  for (const alias of getParameterInputNames(parameterName)) {
+    if (args[alias] !== undefined) {
+      return args[alias];
+    }
+  }
+
+  return undefined;
+}
+
+function verifyMultipartBody(spec, rawBody, args) {
+  assert.equal(typeof rawBody, "string", `Expected raw multipart body for ${spec.toolName}`);
+
+  for (const parameter of spec.formParameters) {
+    assert.match(rawBody, new RegExp(`name="${escapeRegExp(parameter.name)}"`));
+    const value = args.form[parameter.name];
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        assert.match(rawBody, new RegExp(`filename="${escapeRegExp(item.filename)}"`));
+      }
+      continue;
+    }
+
+    if (value && typeof value === "object" && "filename" in value) {
+      assert.match(rawBody, new RegExp(`filename="${escapeRegExp(value.filename)}"`));
+      continue;
+    }
+
+    assert.match(rawBody, new RegExp(escapeRegExp(String(value))));
+  }
+}
+
+function isBinarySpec(spec) {
+  return spec.method === "GET" && BINARY_PATHS.has(spec.path);
+}
+
+function isBinaryRoute(method, path) {
+  if (method !== "GET") {
+    return false;
+  }
+
+  return GENERATED_TOOL_SPECS.some(spec => {
+    return isBinarySpec(spec) && matchesApiPath(spec.path, path);
+  });
+}
+
+function isPublicRoute(method, path) {
+  const spec = GENERATED_TOOL_SPECS.find(candidate => {
+    return candidate.method === method && matchesApiPath(candidate.path, path);
+  });
+
+  return spec ? !spec.authRequired : false;
+}
+
+function matchesApiPath(templatePath, actualPath) {
+  const regex = new RegExp(
+    "^/api/v1" + templatePath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\\\{[^/]+?\\\}/g, "[^/]+") + "$"
+  );
+  return regex.test(actualPath);
+}
+
 async function readRequestBody(req) {
-  let rawBody = "";
+  const chunks = [];
 
   for await (const chunk of req) {
-    rawBody += String(chunk);
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
 
-  if (rawBody.length === 0) {
-    return null;
+  const rawBuffer = Buffer.concat(chunks);
+  const rawBody = rawBuffer.toString("utf8");
+  if (rawBuffer.length === 0) {
+    return { body: null, rawBody: "" };
   }
 
-  return JSON.parse(rawBody);
+  const contentType = typeof req.headers["content-type"] === "string"
+    ? req.headers["content-type"]
+    : "";
+
+  if (contentType.includes("application/json")) {
+    return {
+      body: JSON.parse(rawBody),
+      rawBody
+    };
+  }
+
+  return {
+    body: null,
+    rawBody
+  };
 }
 
 function json(res, status, payload) {
   res.writeHead(status, { "content-type": "application/json" });
   res.end(JSON.stringify(payload));
+}
+
+function binary(res, options) {
+  const headers = {
+    "content-type": options.contentType
+  };
+
+  if (options.filename) {
+    headers["content-disposition"] = `attachment; filename="${options.filename}"`;
+  }
+
+  res.writeHead(200, headers);
+  res.end(options.body);
+}
+
+function detectBinaryContentType(path) {
+  if (path.includes("/avatar")) {
+    return "image/png";
+  }
+
+  if (path.includes("/background") || path.includes("/unsplash/")) {
+    return "image/jpeg";
+  }
+
+  return "application/octet-stream";
+}
+
+function detectBinaryFilename(path) {
+  if (path.includes("/avatar")) {
+    return "avatar.png";
+  }
+
+  if (path.includes("/background") || path.includes("/unsplash/")) {
+    return "background.jpg";
+  }
+
+  return "attachment.bin";
 }
 
 function searchParamsToObject(searchParams) {
@@ -581,4 +1036,8 @@ function searchParamsToObject(searchParams) {
   }
 
   return result;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

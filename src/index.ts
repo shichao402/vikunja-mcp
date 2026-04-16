@@ -1,12 +1,19 @@
 #!/usr/bin/env node
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
 import { VikunjaClient, VikunjaConfigError } from "./vikunja-client.js";
+import {
+  getGeneratedToolSpecs,
+  getParameterInputNames,
+  type GeneratedToolSpec,
+  type SwaggerDocument,
+  type SwaggerParameter
+} from "./swagger.js";
 
 const packageMetadata = JSON.parse(
   readFileSync(new URL("../package.json", import.meta.url), "utf8")
@@ -17,6 +24,8 @@ const packageMetadata = JSON.parse(
 
 const packageName = packageMetadata.name ?? "@shichao402/vikunja-mcp";
 const packageVersion = packageMetadata.version ?? "0.0.0";
+const swaggerDocument = loadSwaggerDocument();
+const generatedToolSpecs = getGeneratedToolSpecs(swaggerDocument);
 
 const HELP_TEXT = `${packageName}
 
@@ -504,6 +513,8 @@ server.registerTool(
     jsonResult(await client.createTaskComment(task_id, comment))
 );
 
+registerGeneratedTools();
+
 async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
@@ -517,6 +528,244 @@ main().catch((error: unknown) => {
   process.stderr.write(`${message}\n`);
   process.exit(1);
 });
+
+function registerGeneratedTools(): void {
+  for (const spec of generatedToolSpecs) {
+    server.registerTool(
+      spec.toolName,
+      {
+        description: spec.description,
+        inputSchema: spec.inputSchema
+      },
+      async input =>
+        jsonResult(await invokeGeneratedTool(spec, normalizeToolInput(input)))
+    );
+  }
+}
+
+async function invokeGeneratedTool(
+  spec: GeneratedToolSpec,
+  input: Record<string, unknown>
+): Promise<unknown> {
+  const requestPath = resolveRequestPath(spec, input);
+  const query = resolveQuery(spec, input);
+  const body = resolveBodyInput(spec, input);
+  const form = resolveFormInput(spec, input);
+
+  if (body !== undefined && form !== undefined) {
+    throw new VikunjaConfigError(
+      `Tool ${spec.toolName} received both body and form input. Use only one payload style per request.`
+    );
+  }
+
+  return client.rawRequest(spec.method, requestPath, {
+    auth: spec.authRequired,
+    query,
+    body,
+    form
+  });
+}
+
+function resolveRequestPath(
+  spec: GeneratedToolSpec,
+  input: Record<string, unknown>
+): string {
+  let resolvedPath = spec.path;
+
+  for (const parameter of spec.pathParameters) {
+    const value = getInputValue(input, parameter);
+    if (value === undefined) {
+      throw new VikunjaConfigError(
+        `Missing required path parameter ${parameter.name} for tool ${spec.toolName}.`
+      );
+    }
+
+    resolvedPath = resolvedPath.replace(
+      `{${parameter.name}}`,
+      encodeURIComponent(stringifyPrimitiveValue(value, parameter.name, spec.toolName))
+    );
+  }
+
+  return resolvedPath;
+}
+
+function resolveQuery(
+  spec: GeneratedToolSpec,
+  input: Record<string, unknown>
+): Record<string, string | number | boolean | Array<string | number | boolean>> | undefined {
+  const query: Record<
+    string,
+    string | number | boolean | Array<string | number | boolean>
+  > = {};
+
+  for (const parameter of spec.queryParameters) {
+    const value = getInputValue(input, parameter);
+    if (value === undefined) {
+      continue;
+    }
+
+    if (Array.isArray(value)) {
+      query[parameter.name] = value.map(item =>
+        normalizeQueryPrimitive(item, parameter.name, spec.toolName)
+      );
+      continue;
+    }
+
+    query[parameter.name] = normalizeQueryPrimitive(
+      value,
+      parameter.name,
+      spec.toolName
+    );
+  }
+
+  return Object.keys(query).length > 0 ? query : undefined;
+}
+
+function resolveBodyInput(
+  spec: GeneratedToolSpec,
+  input: Record<string, unknown>
+): unknown {
+  if (input.body !== undefined) {
+    return input.body;
+  }
+
+  if (spec.bodyParameter) {
+    for (const alias of getParameterInputNames(spec.bodyParameter.name)) {
+      const value = input[alias];
+      if (value !== undefined) {
+        return value;
+      }
+    }
+
+    if (spec.bodyParameter.required) {
+      throw new VikunjaConfigError(
+        `Missing required body payload for tool ${spec.toolName}. Pass it in the body field.`
+      );
+    }
+  }
+
+  return undefined;
+}
+
+function resolveFormInput(
+  spec: GeneratedToolSpec,
+  input: Record<string, unknown>
+): Record<string, unknown> | undefined {
+  if (spec.formParameters.length === 0) {
+    return undefined;
+  }
+
+  const rawForm = input.form;
+  if (rawForm === undefined) {
+    const requiredFields = spec.formParameters.filter(parameter => parameter.required);
+    if (requiredFields.length > 0) {
+      throw new VikunjaConfigError(
+        `Missing required form payload for tool ${spec.toolName}. Pass multipart fields in the form object.`
+      );
+    }
+
+    return undefined;
+  }
+
+  if (!isPlainObject(rawForm)) {
+    throw new VikunjaConfigError(
+      `Tool ${spec.toolName} expects form to be an object of multipart fields.`
+    );
+  }
+
+  const form = cleanPayload(rawForm);
+
+  for (const parameter of spec.formParameters) {
+    if (parameter.required && form[parameter.name] === undefined) {
+      throw new VikunjaConfigError(
+        `Missing required form field ${parameter.name} for tool ${spec.toolName}.`
+      );
+    }
+  }
+
+  return form;
+}
+
+function getInputValue(
+  input: Record<string, unknown>,
+  parameter: SwaggerParameter
+): unknown {
+  for (const alias of getParameterInputNames(parameter.name)) {
+    const value = input[alias];
+    if (value !== undefined) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+function normalizeQueryPrimitive(
+  value: unknown,
+  parameterName: string,
+  toolName: string
+): string | number | boolean {
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return value;
+  }
+
+  throw new VikunjaConfigError(
+    `Tool ${toolName} received a non-scalar value for query parameter ${parameterName}.`
+  );
+}
+
+function stringifyPrimitiveValue(
+  value: unknown,
+  parameterName: string,
+  toolName: string
+): string {
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return String(value);
+  }
+
+  throw new VikunjaConfigError(
+    `Tool ${toolName} received a non-scalar value for path parameter ${parameterName}.`
+  );
+}
+
+function normalizeToolInput(input: unknown): Record<string, unknown> {
+  if (isPlainObject(input)) {
+    return input;
+  }
+
+  return {};
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function loadSwaggerDocument(): SwaggerDocument {
+  const candidateUrls = [
+    new URL("./vikunja-docs.json", import.meta.url),
+    new URL("../src/vikunja-docs.json", import.meta.url)
+  ];
+
+  for (const candidateUrl of candidateUrls) {
+    if (!existsSync(candidateUrl)) {
+      continue;
+    }
+
+    return JSON.parse(readFileSync(candidateUrl, "utf8")) as SwaggerDocument;
+  }
+
+  throw new VikunjaConfigError(
+    "Missing bundled Vikunja Swagger snapshot. Expected vikunja-docs.json to be available at runtime."
+  );
+}
 
 function jsonResult(payload: unknown): { content: Array<{ type: "text"; text: string }> } {
   return {

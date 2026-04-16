@@ -2,14 +2,12 @@
 
 一个可直接通过 `npx` 启动的 Vikunja MCP Server，走 `stdio` 传输，适合接到 Claude Desktop、Cherry Studio、Cursor 或任何兼容 MCP 的客户端。
 
-它基于 Vikunja 官方 Swagger/OpenAPI 文档实现，覆盖了最常用的能力：
+当前版本分两层能力：
 
-- 实例信息
-- 当前用户信息
-- 项目列表 / 查询 / 创建 / 更新 / 删除
-- 任务列表 / 查询 / 创建 / 更新 / 删除
-- 标签列表 / 创建 / 任务标签管理
-- 任务评论列表 / 创建
+- 19 个高频“易用工具”，覆盖项目、任务、标签、评论这些日常核心操作
+- 161 个基于 Vikunja Swagger 快照自动生成的原始 REST 工具，覆盖当前文档中的全部 API operation
+
+总计当前暴露 `180` 个 MCP 工具，其中原始工具命名规则为 `vikunja_api_<method>_<path>`，适合在模型侧精确调用任意接口。
 
 ## 安装方式
 
@@ -52,8 +50,8 @@ VIKUNJA_LONG_TOKEN=true
 说明：
 
 - `VIKUNJA_API_TOKEN` 适用于 Vikunja Cloud 和自建实例，优先级最高。
-- `VIKUNJA_USERNAME` / `VIKUNJA_PASSWORD` 只适合自建实例，服务端会自动调用 `/api/v1/login` 换取 JWT 并缓存。
-- 如果你把地址写成 `https://host/api/v1`，服务端也会自动规范化，不需要手动改。
+- `VIKUNJA_USERNAME` / `VIKUNJA_PASSWORD` 适合自建实例，服务端会自动调用 `/api/v1/login` 换取 JWT 并缓存。
+- 如果地址写成 `https://host/api/v1`，服务端也会自动规范化。
 
 ## Claude Desktop 配置示例
 
@@ -72,7 +70,9 @@ VIKUNJA_LONG_TOKEN=true
 }
 ```
 
-## 可用工具
+## 工具分层
+
+易用工具：
 
 - `vikunja_get_server_info`
 - `vikunja_get_current_user`
@@ -94,6 +94,42 @@ VIKUNJA_LONG_TOKEN=true
 - `vikunja_list_task_comments`
 - `vikunja_create_task_comment`
 
+原始工具：
+
+- 对应 Vikunja Swagger 中全部 `161` 个 operation
+- 命名示例：`vikunja_api_put_filters`、`vikunja_api_post_tasks_bulk`、`vikunja_api_put_projects_project_views`、`vikunja_api_put_tasks_id_attachments`
+- 路径参数和查询参数直接放顶层；请求体用 `body`；上传类接口用 `form`
+- `form` 中文件字段格式为 `{ "filename": "a.txt", "contentBase64": "...", "contentType": "text/plain" }`
+- 二进制下载接口会返回 `{ kind, contentType, filename, contentBase64 }`
+
+## API 覆盖追踪
+
+完整覆盖和仍有约束的地方见 [docs/api-coverage.md](docs/api-coverage.md)。
+
+当前状态：
+
+- Vikunja Swagger 快照 operation 总数：`161`
+- 原始 MCP 工具覆盖：`161 / 161`
+- 额外易用工具：`19`
+- `POST /login` 已同时作为原始工具暴露，也仍保留为自建实例用户名密码登录的内部能力
+
+## 测试
+
+本地契约测试：
+
+```bash
+npm test
+```
+
+针对真实 Vikunja 实例的冒烟测试：
+
+```bash
+VIKUNJA_LIVE_BASE_URL=http://127.0.0.1:34560 \
+VIKUNJA_LIVE_USERNAME=mcpadmin \
+VIKUNJA_LIVE_PASSWORD='StrongPass123!' \
+npm run test:live
+```
+
 ## 本地开发
 
 ```bash
@@ -107,19 +143,12 @@ npm run build
 node dist/index.js --help
 ```
 
-## 发布到 npm
+## 分发与发布
 
-先确认包名没被占用，并已登录 npm：
+当前分发方式仍然保留 `npx`，因为对 MCP 客户端最直接，用户侧几乎没有安装成本。
 
 ```bash
-npm whoami
 npm publish
 ```
 
-GitHub 仓库地址会是 `https://github.com/shichao402/vikunja-mcp`。
-
-## 设计取舍
-
-- 分发方式保留为 `npx`，因为对 MCP 客户端最直接，用户侧几乎没有安装成本。
-- 默认只做 `stdio` server，不额外引入 HTTP 包装层，减少部署和故障面。
-- 认证优先走 API Token，避免把账号密码暴露给模型上下文。
+GitHub 仓库：`https://github.com/shichao402/vikunja-mcp`

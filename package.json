@@ -1,6 +1,6 @@
 {
   "name": "@shichao402/vikunja-mcp",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "A Vikunja MCP server for stdio and npx usage.",
   "type": "module",
   "license": "MIT",
@@ -8,7 +8,8 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "docs"
   ],
   "engines": {
     "node": ">=18"
@@ -33,10 +34,11 @@
     "npx"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node --input-type=module -e \"import { copyFileSync } from 'node:fs'; copyFileSync('src/vikunja-docs.json', 'dist/vikunja-docs.json');\"",
     "test": "npm run build && node --test test/*.test.mjs",
     "prepare": "npm run build",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "test:live": "npm run build && node --test test/live.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
