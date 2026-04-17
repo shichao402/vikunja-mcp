@@ -1,6 +1,6 @@
 {
   "name": "@shichao402/vikunja-mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A Vikunja MCP server for stdio and npx usage.",
   "type": "module",
   "license": "MIT",
@@ -8,6 +8,7 @@
   "files": [
     "dist",
     "README.md",
+    "README.zh-CN.md",
     "LICENSE",
     "docs"
   ],

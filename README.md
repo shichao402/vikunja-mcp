@@ -1,59 +1,61 @@
 # @shichao402/vikunja-mcp
 
-一个可直接通过 `npx` 启动的 Vikunja MCP Server，走 `stdio` 传输，适合接到 Claude Desktop、Cherry Studio、Cursor 或任何兼容 MCP 的客户端。
+English | [简体中文](README.zh-CN.md)
 
-当前版本分两层能力：
+A Vikunja MCP server you can start directly with `npx`, using `stdio` transport for Claude Desktop, Cursor, Cherry Studio, and any other MCP-compatible client.
 
-- 19 个高频“易用工具”，覆盖项目、任务、标签、评论这些日常核心操作
-- 161 个基于 Vikunja Swagger 快照自动生成的原始 REST 工具，覆盖当前文档中的全部 API operation
+The current package exposes two layers:
 
-总计当前暴露 `180` 个 MCP 工具，其中原始工具命名规则为 `vikunja_api_<method>_<path>`，适合在模型侧精确调用任意接口。
+- 19 ergonomic tools for day-to-day project, task, label, and comment workflows
+- 161 raw REST tools generated from the bundled Vikunja Swagger snapshot, covering every documented operation in that snapshot
 
-## 安装方式
+That means the package currently exposes `180` MCP tools in total. Raw tools follow the naming pattern `vikunja_api_<method>_<path>` so the model can call any Vikunja API endpoint precisely when needed.
 
-不需要全局安装，推荐直接用 `npx`：
+## Installation
+
+No global install is required. The recommended distribution path is `npx`:
 
 ```bash
 npx -y @shichao402/vikunja-mcp
 ```
 
-## 环境变量
+## Environment Variables
 
-至少需要配置实例地址：
+You must at least provide the Vikunja base URL:
 
 ```bash
 VIKUNJA_BASE_URL=https://vikunja.example.com
 ```
 
-认证优先推荐 API Token：
+API token authentication is the preferred option:
 
 ```bash
 VIKUNJA_API_TOKEN=your_token
 ```
 
-完整支持的环境变量：
+Supported environment variables:
 
 ```bash
 VIKUNJA_BASE_URL=https://vikunja.example.com
 VIKUNJA_API_TOKEN=your_api_token
 
-# 可选别名
+# Optional alias
 VIKUNJA_URL=https://vikunja.example.com
 
-# 自建实例可选用户名密码登录，不推荐用于 Vikunja Cloud
+# Optional username/password login for self-hosted Vikunja
 VIKUNJA_USERNAME=your_username
 VIKUNJA_PASSWORD=your_password
 VIKUNJA_TOTP_PASSCODE=123456
 VIKUNJA_LONG_TOKEN=true
 ```
 
-说明：
+Notes:
 
-- `VIKUNJA_API_TOKEN` 适用于 Vikunja Cloud 和自建实例，优先级最高。
-- `VIKUNJA_USERNAME` / `VIKUNJA_PASSWORD` 适合自建实例，服务端会自动调用 `/api/v1/login` 换取 JWT 并缓存。
-- 如果地址写成 `https://host/api/v1`，服务端也会自动规范化。
+- `VIKUNJA_API_TOKEN` works for both Vikunja Cloud and self-hosted instances and has the highest priority.
+- `VIKUNJA_USERNAME` and `VIKUNJA_PASSWORD` are intended for self-hosted instances. The server will call `/api/v1/login`, cache the JWT, and reuse it.
+- If you pass a URL ending in `/api/v1`, the server normalizes it automatically.
 
-## Claude Desktop 配置示例
+## Claude Desktop Example
 
 ```json
 {
@@ -70,9 +72,9 @@ VIKUNJA_LONG_TOKEN=true
 }
 ```
 
-## 工具分层
+## Tool Layers
 
-易用工具：
+Ergonomic tools:
 
 - `vikunja_get_server_info`
 - `vikunja_get_current_user`
@@ -94,34 +96,36 @@ VIKUNJA_LONG_TOKEN=true
 - `vikunja_list_task_comments`
 - `vikunja_create_task_comment`
 
-原始工具：
+Raw tools:
 
-- 对应 Vikunja Swagger 中全部 `161` 个 operation
-- 命名示例：`vikunja_api_put_filters`、`vikunja_api_post_tasks_bulk`、`vikunja_api_put_projects_project_views`、`vikunja_api_put_tasks_id_attachments`
-- 路径参数和查询参数直接放顶层；请求体用 `body`；上传类接口用 `form`
-- `form` 中文件字段格式为 `{ "filename": "a.txt", "contentBase64": "...", "contentType": "text/plain" }`
-- 二进制下载接口会返回 `{ kind, contentType, filename, contentBase64 }`
+- One raw tool for each of the `161` operations in the bundled Vikunja Swagger snapshot
+- Example names: `vikunja_api_put_filters`, `vikunja_api_post_tasks_bulk`, `vikunja_api_put_projects_project_views`, `vikunja_api_put_tasks_id_attachments`
+- Path and query parameters are top-level fields
+- JSON request payloads go in `body`
+- Multipart uploads go in `form`
+- File values inside `form` use `{ "filename": "a.txt", "contentBase64": "...", "contentType": "text/plain" }`
+- Binary download endpoints return `{ kind, contentType, filename, contentBase64, size }`
 
-## API 覆盖追踪
+## API Coverage
 
-完整覆盖和仍有约束的地方见 [docs/api-coverage.md](docs/api-coverage.md)。
+Full coverage details and remaining limitations are tracked in [English coverage docs](docs/api-coverage.md) and [中文覆盖文档](docs/api-coverage.zh-CN.md).
 
-当前状态：
+Current status:
 
-- Vikunja Swagger 快照 operation 总数：`161`
-- 原始 MCP 工具覆盖：`161 / 161`
-- 额外易用工具：`19`
-- `POST /login` 已同时作为原始工具暴露，也仍保留为自建实例用户名密码登录的内部能力
+- Swagger operations in the bundled snapshot: `161`
+- Raw MCP coverage: `161 / 161`
+- Additional ergonomic tools: `19`
+- `POST /login` is exposed both as a raw tool and as an internal self-hosted login capability
 
-## 测试
+## Testing
 
-本地契约测试：
+Contract tests:
 
 ```bash
 npm test
 ```
 
-针对真实 Vikunja 实例的冒烟测试：
+Live smoke tests against a real Vikunja instance:
 
 ```bash
 VIKUNJA_LIVE_BASE_URL=http://127.0.0.1:34560 \
@@ -130,25 +134,25 @@ VIKUNJA_LIVE_PASSWORD='StrongPass123!' \
 npm run test:live
 ```
 
-## 本地开发
+## Local Development
 
 ```bash
 npm install
 npm run build
 ```
 
-查看帮助：
+Show help:
 
 ```bash
 node dist/index.js --help
 ```
 
-## 分发与发布
+## Publishing
 
-当前分发方式仍然保留 `npx`，因为对 MCP 客户端最直接，用户侧几乎没有安装成本。
+The package is intentionally distributed via `npx` because that is the lowest-friction path for MCP clients.
 
 ```bash
 npm publish
 ```
 
-GitHub 仓库：`https://github.com/shichao402/vikunja-mcp`
+GitHub repository: `https://github.com/shichao402/vikunja-mcp`
