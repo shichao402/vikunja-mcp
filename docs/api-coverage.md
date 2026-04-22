@@ -35,7 +35,7 @@ The package exposes two layers:
 | `vikunja_list_tasks` | Maps to `GET /tasks` |
 | `vikunja_get_task` | Maps to `GET /tasks/{id}` |
 | `vikunja_create_task` | Maps to `PUT /projects/{id}/tasks` |
-| `vikunja_update_task` | Maps to `POST /tasks/{id}` |
+| `vikunja_update_task` | Maps to `POST /tasks/{id}`. PATCH-style merge by default: the MCP server first reads the current task, merges your fields on top, and then posts the merged body so unspecified fields are not cleared. Pass `_replace: true` to opt out and post only the explicit fields (Vikunja will then reset every unspecified field to its default). |
 | `vikunja_delete_task` | Maps to `DELETE /tasks/{id}` |
 | `vikunja_list_labels` | Maps to `GET /labels` |
 | `vikunja_create_label` | Maps to `PUT /labels` |

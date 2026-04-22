@@ -118,8 +118,22 @@ export class VikunjaClient {
     return this.rawRequest("PUT", `/projects/${projectId}/tasks`, { body: task });
   }
 
-  async updateTask(taskId: number, task: JsonRecord): Promise<unknown> {
-    return this.rawRequest("POST", `/tasks/${taskId}`, { body: task });
+  async updateTask(
+    taskId: number,
+    task: JsonRecord,
+    options: { replace?: boolean } = {}
+  ): Promise<unknown> {
+    if (options.replace) {
+      return this.rawRequest("POST", `/tasks/${taskId}`, { body: task });
+    }
+
+    const current = await this.getTask(taskId);
+    const currentRecord = isJsonRecord(current) ? current : {};
+    const merged = {
+      ...stripReadOnlyTaskFields(currentRecord),
+      ...task
+    };
+    return this.rawRequest("POST", `/tasks/${taskId}`, { body: merged });
   }
 
   async deleteTask(taskId: number): Promise<unknown> {
@@ -535,4 +549,37 @@ function asRecord(value: unknown, throwOnInvalid = true): JsonRecord {
   }
 
   return {};
+}
+
+function isJsonRecord(value: unknown): value is JsonRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+const READ_ONLY_TASK_FIELDS: ReadonlySet<string> = new Set([
+  "created",
+  "updated",
+  "done_at",
+  "created_by",
+  "identifier",
+  "index",
+  "related_tasks",
+  "reactions",
+  "attachments",
+  "cover_image_attachment_id",
+  "labels",
+  "assignees",
+  "subscription",
+  "buckets",
+  "reminders"
+]);
+
+function stripReadOnlyTaskFields(task: JsonRecord): JsonRecord {
+  const result: JsonRecord = {};
+  for (const [key, value] of Object.entries(task)) {
+    if (READ_ONLY_TASK_FIELDS.has(key)) {
+      continue;
+    }
+    result[key] = value;
+  }
+  return result;
 }

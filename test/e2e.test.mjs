@@ -244,28 +244,36 @@ test("legacy ergonomic tools still work over stdio with API token auth", async t
     position: 3.5,
     is_favorite: false
   };
+  const previousMockRequestCount = mock.requests.length;
   const updateTask = await callToolJson(
     mcp.client,
     "vikunja_update_task",
     updateTaskBody
   );
+  const updateRequests = mock.requests.slice(previousMockRequestCount);
+  // Default PATCH semantics: MCP should first GET, then POST the merged body.
+  assert.equal(updateRequests.length, 2, "Expected a GET followed by a POST for the merged update flow");
+  assert.equal(updateRequests[0].method, "GET");
+  assert.equal(updateRequests[0].path, "/api/v1/tasks/55");
+  assert.equal(updateRequests[1].method, "POST");
+  assert.equal(updateRequests[1].path, "/api/v1/tasks/55");
   assert.equal(updateTask.path, "/api/v1/tasks/55");
-  assert.deepEqual(updateTask.body, {
-    title: "Task B",
-    description: "Updated task",
-    done: true,
-    due_date: "2026-04-22T10:00:00+08:00",
-    start_date: "2026-04-20T09:00:00+08:00",
-    end_date: "2026-04-23T18:00:00+08:00",
-    priority: 5,
-    percent_done: 100,
-    project_id: 43,
-    hex_color: "#f0f0f0",
-    repeat_after: 7200,
-    bucket_id: 9,
-    position: 3.5,
-    is_favorite: false
-  });
+  // Read-only fields from the mocked current task must NOT appear in the POST body.
+  assert.equal(updateRequests[1].body.created, undefined);
+  assert.equal(updateRequests[1].body.updated, undefined);
+  assert.equal(updateRequests[1].body.identifier, undefined);
+  assert.equal(updateRequests[1].body.index, undefined);
+  assert.equal(updateRequests[1].body.created_by, undefined);
+  assert.equal(updateRequests[1].body.related_tasks, undefined);
+  assert.equal(updateRequests[1].body.reactions, undefined);
+  assert.equal(updateRequests[1].body.attachments, undefined);
+  // Writable fields from the current task should be merged under the user-provided values.
+  assert.equal(updateRequests[1].body.id, 55);
+  // User-provided values win over the current task.
+  assert.deepEqual(updateRequests[1].body.title, "Task B");
+  assert.deepEqual(updateRequests[1].body.description, "Updated task");
+  assert.deepEqual(updateRequests[1].body.done, true);
+  assert.deepEqual(updateRequests[1].body.priority, 5);
 
   const deleteTask = await callToolJson(mcp.client, "vikunja_delete_task", {
     task_id: 55
@@ -351,6 +359,77 @@ test("legacy ergonomic tools still work over stdio with API token auth", async t
   assert.deepEqual(createTaskComment.body, { comment: "Looks good" });
 
   assert.equal(mcp.stderr.trim(), "");
+});
+
+test("vikunja_update_task with _replace:true skips the merge and posts only explicit fields", async t => {
+  const mock = await startMockVikunjaServer();
+  const mcp = await startMcpClient({
+    VIKUNJA_BASE_URL: mock.baseUrl,
+    VIKUNJA_API_TOKEN: API_TOKEN
+  });
+
+  t.after(async () => {
+    await mcp.close();
+    await mock.close();
+  });
+
+  const previousCount = mock.requests.length;
+  await callToolJson(mcp.client, "vikunja_update_task", {
+    task_id: 77,
+    _replace: true,
+    title: "Replaced title"
+  });
+
+  const captured = mock.requests.slice(previousCount);
+  assert.equal(captured.length, 1, "_replace:true must not trigger an extra GET");
+  assert.equal(captured[0].method, "POST");
+  assert.equal(captured[0].path, "/api/v1/tasks/77");
+  assert.deepEqual(captured[0].body, { title: "Replaced title" });
+});
+
+test("vikunja_update_task default merge preserves existing fields when only one is changed", async t => {
+  const mock = await startMockVikunjaServer();
+  const mcp = await startMcpClient({
+    VIKUNJA_BASE_URL: mock.baseUrl,
+    VIKUNJA_API_TOKEN: API_TOKEN
+  });
+
+  t.after(async () => {
+    await mcp.close();
+    await mock.close();
+  });
+
+  const previousCount = mock.requests.length;
+  await callToolJson(mcp.client, "vikunja_update_task", {
+    task_id: 88,
+    done: true
+  });
+
+  const captured = mock.requests.slice(previousCount);
+  assert.equal(captured.length, 2, "Default update must GET then POST");
+  assert.equal(captured[0].method, "GET");
+  assert.equal(captured[0].path, "/api/v1/tasks/88");
+  assert.equal(captured[1].method, "POST");
+  assert.equal(captured[1].path, "/api/v1/tasks/88");
+
+  const postBody = captured[1].body;
+  // User-provided field wins
+  assert.equal(postBody.done, true);
+  // Existing writable fields from the mocked task are preserved
+  assert.equal(postBody.title, "Existing task title");
+  assert.equal(postBody.description, "Existing task description");
+  assert.equal(postBody.priority, 2);
+  assert.equal(postBody.project_id, 42);
+  assert.equal(postBody.hex_color, "#aabbcc");
+  // Read-only fields are stripped
+  assert.equal(postBody.created, undefined);
+  assert.equal(postBody.updated, undefined);
+  assert.equal(postBody.identifier, undefined);
+  assert.equal(postBody.index, undefined);
+  assert.equal(postBody.created_by, undefined);
+  assert.equal(postBody.related_tasks, undefined);
+  assert.equal(postBody.reactions, undefined);
+  assert.equal(postBody.attachments, undefined);
 });
 
 test("generated raw tools are registered for every swagger operation and route correctly", async t => {
@@ -614,8 +693,34 @@ async function startMockVikunjaServer() {
       });
     }
 
+    const legacyEndpoint = resolveLegacyEndpoint(method, url.pathname);
+
+    if (legacyEndpoint === "get_task") {
+      const taskId = extractTaskIdFromPath(url.pathname);
+      return json(res, 200, {
+        endpoint: legacyEndpoint,
+        ...request,
+        id: taskId,
+        title: "Existing task title",
+        description: "Existing task description",
+        done: false,
+        priority: 2,
+        project_id: 42,
+        bucket_id: 7,
+        hex_color: "#aabbcc",
+        created: "2026-04-01T00:00:00Z",
+        updated: "2026-04-15T00:00:00Z",
+        identifier: "#99",
+        index: 99,
+        created_by: { id: 1, username: "someone" },
+        related_tasks: {},
+        reactions: {},
+        attachments: []
+      });
+    }
+
     return json(res, 200, {
-      endpoint: resolveLegacyEndpoint(method, url.pathname),
+      endpoint: legacyEndpoint,
       ...request
     });
   });
@@ -695,6 +800,11 @@ function resolveLegacyEndpoint(method, path) {
   if (method === "PUT" && /^\/api\/v1\/tasks\/\d+\/comments$/.test(path)) return "create_task_comment";
 
   return null;
+}
+
+function extractTaskIdFromPath(path) {
+  const match = /^\/api\/v1\/tasks\/(\d+)$/.exec(path);
+  return match ? Number(match[1]) : null;
 }
 
 function buildGeneratedArgs(spec) {

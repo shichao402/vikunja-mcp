@@ -344,9 +344,16 @@ server.registerTool(
 server.registerTool(
   "vikunja_update_task",
   {
-    description: "Update an existing task.",
+    description:
+      "Update an existing task with PATCH-style semantics. By default only the fields you pass are changed; every other field keeps its current value (the MCP server reads the task first and merges your input on top). Set `_replace: true` to opt out and use Vikunja's native full-replacement behavior, which resets every unspecified field to its type default.",
     inputSchema: {
       task_id: z.number().int().positive().describe("Task ID."),
+      _replace: z
+        .boolean()
+        .optional()
+        .describe(
+          "Opt-out escape hatch. When true, skip the read-then-merge step and post only the fields you pass, which causes Vikunja to reset any unspecified field to its default. Leave unset for safe partial updates."
+        ),
       title: z.string().min(1).optional().describe("Task title."),
       description: z.string().optional().describe("Task description."),
       done: z.boolean().optional().describe("Mark task as done."),
@@ -399,8 +406,10 @@ server.registerTool(
       is_favorite: z.boolean().optional().describe("Favorite state.")
     }
   },
-  async ({ task_id, ...task }) =>
-    jsonResult(await client.updateTask(task_id, cleanPayload(task)))
+  async ({ task_id, _replace, ...task }) =>
+    jsonResult(
+      await client.updateTask(task_id, cleanPayload(task), { replace: _replace })
+    )
 );
 
 server.registerTool(

@@ -35,7 +35,7 @@
 | `vikunja_list_tasks` | 对应 `GET /tasks` |
 | `vikunja_get_task` | 对应 `GET /tasks/{id}` |
 | `vikunja_create_task` | 对应 `PUT /projects/{id}/tasks` |
-| `vikunja_update_task` | 对应 `POST /tasks/{id}` |
+| `vikunja_update_task` | 对应 `POST /tasks/{id}`。默认采用 PATCH 合并语义：MCP 先 GET 当前任务，把本次传入的字段覆盖在现有值之上，然后再 POST 完整的合并结果，未传字段不会被清空。如需显式改回全量替换语义，传入 `_replace: true`，MCP 将直接 POST 你显式传入的字段（Vikunja 会把未传字段重置为默认值）。 |
 | `vikunja_delete_task` | 对应 `DELETE /tasks/{id}` |
 | `vikunja_list_labels` | 对应 `GET /labels` |
 | `vikunja_create_label` | 对应 `PUT /labels` |
