@@ -1,3 +1,20 @@
 dist
 node_modules
 .DS_Store
+
+# Local mise env files (may contain secrets like API tokens)
+.config/
+mise.local.toml
+.mise.local.toml
+
+# Per-IDE / per-agent tool configs and caches
+# (rules/skills/mcp configs are rendered per-machine by `dec pull`)
+.claude/
+.codebuddy/
+.codex/
+.cursor/
+.mcp.json
+
+# Dec local state (cache and pull metadata); only .dec/config.yaml and .dec/vars.yaml are tracked
+.dec/cache/
+.dec/.version

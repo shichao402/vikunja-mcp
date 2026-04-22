@@ -1,0 +1,50 @@
+# Dec 项目配置
+# version: 配置结构版本；当前固定为 v2
+# ides: 项目级 IDE 覆盖（可选），例如：
+#   ides:
+#     - cursor
+#     - codex
+# editor: 项目级交互式编辑器，覆盖全局配置（可选），例如：
+#   editor: code --wait
+#   editor: vim
+# available / enabled: 按 vault -> item -> type 组织，type 使用 skills / rules / mcp
+#   my-vault:
+#     my-asset:
+#       skills: true
+#       rules: true
+
+version: v2
+available:
+    cli:
+        cli-release-rules:
+            rules: true
+        cli-release-workflow:
+            skills: true
+    default:
+        helloworld:
+            skills: true
+        project-workflow:
+            skills: true
+    vikunja:
+        vikunja-integration:
+            rules: true
+        vikunja-issue:
+            skills: true
+        vikunja-mcp:
+            mcp: true
+        vikunja-project-bootstrap:
+            skills: true
+        vikunja-workflow:
+            skills: true
+enabled: 
+    vikunja:
+        vikunja-integration:
+            rules: true
+        vikunja-issue:
+            skills: true
+        vikunja-mcp:
+            mcp: true
+        vikunja-project-bootstrap:
+            skills: true
+        vikunja-workflow:
+            skills: true
