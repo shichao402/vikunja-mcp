@@ -36,7 +36,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json && node --input-type=module -e \"import { copyFileSync } from 'node:fs'; copyFileSync('src/vikunja-docs.json', 'dist/vikunja-docs.json');\"",
-    "test": "npm run build && node --test test/*.test.mjs",
+    "test": "npm run build && node --test test/e2e.test.mjs",
     "prepare": "npm run build",
     "prepublishOnly": "npm run build",
     "test:live": "npm run build && node --test test/live.test.mjs"
