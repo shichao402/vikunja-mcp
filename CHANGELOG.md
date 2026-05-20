@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-20
+
 ### Changed
 
 - **BREAKING**: Drop Node.js 18 support; minimum supported version is now Node.js 20. Node 18's `buffer.File` is still flagged as experimental and emits a warning that breaks our e2e stderr assertions.
@@ -28,5 +30,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 See the [git history](https://github.com/shichao402/vikunja-mcp/commits/main) for changes prior to this changelog.
 
-[Unreleased]: https://github.com/shichao402/vikunja-mcp/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/shichao402/vikunja-mcp/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/shichao402/vikunja-mcp/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/shichao402/vikunja-mcp/compare/v0.3.0...v0.3.1
