@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Upgrade `actions/checkout` and `actions/setup-node` to `v6` in CI workflows. The v6 actions ship a Node.js 24 runtime, addressing the deprecation of Node 20 on GitHub Actions runners (forced to Node 24 by 2026-06-02; Node 20 removed 2026-09-16).
 - CI matrix updated to test against Node `20` and `22` on Ubuntu, macOS, and Windows.
 
+### Fixed
+
+- Publish workflow no longer fails with `Cannot find module 'promise-retry'`. The runner's bundled npm (10.9.7) does not support trusted publishing, and `npm install -g npm@<version>` is unreliable because the running npm replaces itself mid-execution. The workflow now invokes a new-enough npm via `npx --package=npm@11.14.1 -- npm publish`, which leaves the global install untouched while still propagating OIDC environment variables.
+
 ## [0.3.1] - 2026-05-20
 
 ### Added
