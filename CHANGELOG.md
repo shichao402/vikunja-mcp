@@ -1,0 +1,32 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Changed
+
+- **BREAKING**: Drop Node.js 18 support; minimum supported version is now Node.js 20. Node 18's `buffer.File` is still flagged as experimental and emits a warning that breaks our e2e stderr assertions.
+- Upgrade `actions/checkout` and `actions/setup-node` to `v6` in CI workflows. The v6 actions ship a Node.js 24 runtime, addressing the deprecation of Node 20 on GitHub Actions runners (forced to Node 24 by 2026-06-02; Node 20 removed 2026-09-16).
+- CI matrix updated to test against Node `20` and `22` on Ubuntu, macOS, and Windows.
+
+## [0.3.1] - 2026-05-20
+
+### Added
+
+- GitHub Actions CI workflow (`.github/workflows/ci.yml`) running the test suite across Ubuntu, macOS, and Windows.
+- npm trusted publishing workflow (`.github/workflows/publish.yml`). Releases are now triggered by pushing a `v*` git tag and authenticate to npm via OIDC instead of a long-lived `NPM_TOKEN`. Each published artifact includes a [provenance](https://docs.npmjs.com/generating-provenance-statements) attestation.
+
+### Fixed
+
+- `npm test` no longer fails on Windows. The previous `node --test test/*.test.mjs` invocation relied on shell glob expansion, which Windows' default shell does not perform. The script now passes the test file path explicitly.
+
+## [0.3.0] and earlier
+
+See the [git history](https://github.com/shichao402/vikunja-mcp/commits/main) for changes prior to this changelog.
+
+[Unreleased]: https://github.com/shichao402/vikunja-mcp/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/shichao402/vikunja-mcp/compare/v0.3.0...v0.3.1
