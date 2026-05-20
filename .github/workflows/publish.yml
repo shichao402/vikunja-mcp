@@ -37,8 +37,5 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Upgrade npm to support trusted publishing
-        run: npm install -g --force npm@11.14.1
-
       - name: Publish
-        run: npm publish
+        run: npx --package=npm@11.14.1 -- npm publish
