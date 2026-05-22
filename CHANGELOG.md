@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-05-22
+
+### Changed
+
+- **BREAKING**: Shorten generated raw REST tool names from full path-derived names to compact `vikunja_api_<method>_<resource>_<hash12>` identifiers. The 19 ergonomic tool names are unchanged.
+
 ## [0.4.0] - 2026-05-20
 
 ### Changed
@@ -34,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 See the [git history](https://github.com/shichao402/vikunja-mcp/commits/main) for changes prior to this changelog.
 
-[Unreleased]: https://github.com/shichao402/vikunja-mcp/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/shichao402/vikunja-mcp/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/shichao402/vikunja-mcp/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/shichao402/vikunja-mcp/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/shichao402/vikunja-mcp/compare/v0.3.0...v0.3.1
