@@ -9,7 +9,7 @@
 - 19 个高频“易用工具”，覆盖项目、任务、标签、评论这些日常核心操作
 - 161 个基于仓库内 Vikunja Swagger 快照自动生成的原始 REST 工具，覆盖该快照里的全部 operation
 
-也就是说，当前总共暴露 `180` 个 MCP 工具。原始工具命名规则为 `vikunja_api_<method>_<path>`，便于模型在需要时精确调用任意 Vikunja API。
+也就是说，当前总共暴露 `180` 个 MCP 工具。原始工具使用 `vikunja_api_<method>_<resource>_<hash12>` 形式的短名称；每个工具描述里仍保留精确 REST operation，便于模型在需要时调用任意 Vikunja API。
 
 ## 安装方式
 
@@ -99,7 +99,7 @@ VIKUNJA_LONG_TOKEN=true
 原始工具：
 
 - 与仓库内 Vikunja Swagger 快照中的 `161` 个 operation 一一对应
-- 命名示例：`vikunja_api_put_filters`、`vikunja_api_post_tasks_bulk`、`vikunja_api_put_projects_project_views`、`vikunja_api_put_tasks_id_attachments`
+- 短名称示例：`vikunja_api_put_filters_dac0a4e19aa2`、`vikunja_api_post_tasks_2ca74cd58ce3`、`vikunja_api_put_projects_18c03cfa3b5a`、`vikunja_api_put_tasks_25d391326d4f`
 - 路径参数和查询参数直接放顶层
 - JSON 请求体统一放在 `body`
 - `multipart/form-data` 上传统一放在 `form`

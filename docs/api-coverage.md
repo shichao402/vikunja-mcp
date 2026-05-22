@@ -19,7 +19,7 @@ All REST operations present in the bundled Swagger snapshot are now exposed as M
 The package exposes two layers:
 
 - Ergonomic tools for common project, task, label, and comment workflows
-- Raw tools generated one-to-one from Swagger operations, named as `vikunja_api_<method>_<path>`
+- Raw tools generated one-to-one from Swagger operations, named as compact `vikunja_api_<method>_<resource>_<hash12>` identifiers
 
 ## Ergonomic Tools
 
@@ -51,21 +51,21 @@ Every Swagger operation has a corresponding raw tool. Examples:
 
 | REST Operation | MCP Tool |
 | --- | --- |
-| `PUT /filters` | `vikunja_api_put_filters` |
-| `POST /tasks/bulk` | `vikunja_api_post_tasks_bulk` |
-| `PUT /tasks/{taskID}/relations` | `vikunja_api_put_tasks_task_id_relations` |
-| `PUT /projects/{project}/views` | `vikunja_api_put_projects_project_views` |
-| `PUT /tasks/{id}/attachments` | `vikunja_api_put_tasks_id_attachments` |
-| `GET /tasks/{id}/attachments/{attachmentID}` | `vikunja_api_get_tasks_id_attachments_attachment_id` |
-| `PUT /user/settings/avatar/upload` | `vikunja_api_put_user_settings_avatar_upload` |
-| `POST /shares/{share}/auth` | `vikunja_api_post_shares_share_auth` |
+| `PUT /filters` | `vikunja_api_put_filters_dac0a4e19aa2` |
+| `POST /tasks/bulk` | `vikunja_api_post_tasks_2ca74cd58ce3` |
+| `PUT /tasks/{taskID}/relations` | `vikunja_api_put_tasks_6293a01ae4e2` |
+| `PUT /projects/{project}/views` | `vikunja_api_put_projects_18c03cfa3b5a` |
+| `PUT /tasks/{id}/attachments` | `vikunja_api_put_tasks_25d391326d4f` |
+| `GET /tasks/{id}/attachments/{attachmentID}` | `vikunja_api_get_tasks_f038453ed58c` |
+| `PUT /user/settings/avatar/upload` | `vikunja_api_put_user_05b2c0bba8e2` |
+| `POST /shares/{share}/auth` | `vikunja_api_post_shares_5d6ccf52a1d9` |
 
 Naming rules:
 
 - Fixed prefix: `vikunja_api_`
 - Lowercased HTTP method
-- Path separators converted to `_`
-- Path parameters stripped from braces and normalized to snake_case
+- First sanitized path segment as the resource hint
+- First 12 hex chars of a SHA-256 hash over the canonical operation key `METHOD path`
 
 ## Input and Output Conventions
 

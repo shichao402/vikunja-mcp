@@ -46,6 +46,8 @@ const swaggerDocument = JSON.parse(
 );
 const GENERATED_TOOL_SPECS = getGeneratedToolSpecs(swaggerDocument);
 const GENERATED_TOOL_NAMES = GENERATED_TOOL_SPECS.map(spec => spec.toolName);
+const GENERATED_TOOL_NAME_PATTERN = /^vikunja_api_(get|put|post|delete|patch)_[a-z0-9_]+_[a-f0-9]{12}$/;
+const MAX_GENERATED_TOOL_NAME_LENGTH = 48;
 const ALL_TOOL_NAMES = [...new Set([...LEGACY_TOOL_NAMES, ...GENERATED_TOOL_NAMES])];
 const PUBLIC_GENERATED_TOOLS = GENERATED_TOOL_SPECS.filter(
   spec => !spec.authRequired
@@ -430,6 +432,19 @@ test("vikunja_update_task default merge preserves existing fields when only one 
   assert.equal(postBody.related_tasks, undefined);
   assert.equal(postBody.reactions, undefined);
   assert.equal(postBody.attachments, undefined);
+});
+
+test("generated raw tool names are compact and unique", () => {
+  assert.equal(GENERATED_TOOL_SPECS.length, countSwaggerOperations(swaggerDocument));
+  assert.equal(new Set(GENERATED_TOOL_NAMES).size, GENERATED_TOOL_NAMES.length);
+
+  for (const toolName of GENERATED_TOOL_NAMES) {
+    assert.match(toolName, GENERATED_TOOL_NAME_PATTERN);
+    assert.ok(
+      toolName.length <= MAX_GENERATED_TOOL_NAME_LENGTH,
+      `Generated tool name is too long: ${toolName}`
+    );
+  }
 });
 
 test("generated raw tools are registered for every swagger operation and route correctly", async t => {

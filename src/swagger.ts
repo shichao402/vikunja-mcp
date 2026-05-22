@@ -1,6 +1,9 @@
+import { createHash } from "node:crypto";
+
 import { z } from "zod";
 
 const SUPPORTED_METHODS = ["get", "put", "post", "delete", "patch"] as const;
+const TOOL_NAME_HASH_LENGTH = 12;
 const METHODS_WITH_JSON_BODY = new Set(["PUT", "POST", "PATCH"]);
 const PUBLIC_OPERATION_KEYS = new Set([
   "POST /auth/openid/{provider}/callback",
@@ -136,7 +139,33 @@ export function getGeneratedToolSpecs(
     }
   }
 
+  assertUniqueGeneratedToolNames(specs);
+
   return specs.sort((left, right) => left.toolName.localeCompare(right.toolName));
+}
+
+function assertUniqueGeneratedToolNames(specs: GeneratedToolSpec[]): void {
+  const seen = new Map<string, GeneratedToolSpec>();
+
+  for (const spec of specs) {
+    const existing = seen.get(spec.toolName);
+    if (existing) {
+      throw new Error(
+        "Duplicate generated tool name " +
+          spec.toolName +
+          " for " +
+          existing.method +
+          " " +
+          existing.path +
+          " and " +
+          spec.method +
+          " " +
+          spec.path
+      );
+    }
+
+    seen.set(spec.toolName, spec);
+  }
 }
 
 function mergeParameters(
@@ -153,12 +182,18 @@ function mergeParameters(
 }
 
 function buildToolName(method: SwaggerMethod, path: string): string {
-  const segments = path
-    .split("/")
-    .filter(Boolean)
-    .map(segment => sanitizeToolSegment(segment));
+  const resource =
+    path
+      .split("/")
+      .filter(Boolean)
+      .map(segment => sanitizeToolSegment(segment))[0] ?? "root";
+  const operationKey = method + " " + path;
+  const hash = createHash("sha256")
+    .update(operationKey)
+    .digest("hex")
+    .slice(0, TOOL_NAME_HASH_LENGTH);
 
-  return ["vikunja", "api", method.toLowerCase(), ...segments].join("_");
+  return ["vikunja", "api", method.toLowerCase(), resource, hash].join("_");
 }
 
 function sanitizeToolSegment(segment: string): string {

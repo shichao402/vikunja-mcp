@@ -9,7 +9,7 @@ The current package exposes two layers:
 - 19 ergonomic tools for day-to-day project, task, label, and comment workflows
 - 161 raw REST tools generated from the bundled Vikunja Swagger snapshot, covering every documented operation in that snapshot
 
-That means the package currently exposes `180` MCP tools in total. Raw tools follow the naming pattern `vikunja_api_<method>_<path>` so the model can call any Vikunja API endpoint precisely when needed.
+That means the package currently exposes `180` MCP tools in total. Raw tools use compact names shaped as `vikunja_api_<method>_<resource>_<hash12>`; each tool description still includes the exact REST operation so the model can call any Vikunja API endpoint precisely when needed.
 
 ## Installation
 
@@ -99,7 +99,7 @@ Ergonomic tools:
 Raw tools:
 
 - One raw tool for each of the `161` operations in the bundled Vikunja Swagger snapshot
-- Example names: `vikunja_api_put_filters`, `vikunja_api_post_tasks_bulk`, `vikunja_api_put_projects_project_views`, `vikunja_api_put_tasks_id_attachments`
+- Compact generated names, for example `vikunja_api_put_filters_dac0a4e19aa2`, `vikunja_api_post_tasks_2ca74cd58ce3`, `vikunja_api_put_projects_18c03cfa3b5a`, `vikunja_api_put_tasks_25d391326d4f`
 - Path and query parameters are top-level fields
 - JSON request payloads go in `body`
 - Multipart uploads go in `form`

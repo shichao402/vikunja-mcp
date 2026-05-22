@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+
+import { getGeneratedToolSpecs } from "../dist/swagger.js";
 
 const LIVE_BASE_URL = process.env.VIKUNJA_LIVE_BASE_URL;
 const LIVE_API_TOKEN = process.env.VIKUNJA_LIVE_API_TOKEN;
@@ -10,6 +13,13 @@ const LIVE_USERNAME = process.env.VIKUNJA_LIVE_USERNAME;
 const LIVE_PASSWORD = process.env.VIKUNJA_LIVE_PASSWORD;
 const LIVE_TOTP = process.env.VIKUNJA_LIVE_TOTP_PASSCODE;
 const LIVE_LONG_TOKEN = process.env.VIKUNJA_LIVE_LONG_TOKEN;
+const swaggerDocument = JSON.parse(
+  readFileSync(new URL("../src/vikunja-docs.json", import.meta.url), "utf8")
+);
+const GENERATED_TOOL_SPECS = getGeneratedToolSpecs(swaggerDocument);
+const RAW_TOOL_NAMES_BY_OPERATION = new Map(
+  GENERATED_TOOL_SPECS.map(spec => [spec.method + " " + spec.path, spec.toolName])
+);
 
 const HAS_AUTH =
   Boolean(LIVE_API_TOKEN) || (Boolean(LIVE_USERNAME) && Boolean(LIVE_PASSWORD));
@@ -37,7 +47,7 @@ test(
 
     t.after(async () => {
       if (createdFilterId) {
-        await callToolAllowError(mcp.client, "vikunja_api_delete_filters_id", {
+        await callToolAllowError(mcp.client, rawToolName("DELETE", "/filters/{id}"), {
           id: createdFilterId
         });
       }
@@ -68,7 +78,7 @@ test(
     });
     assert.equal(typeof task.id, "number");
 
-    const filter = await callToolJson(mcp.client, "vikunja_api_put_filters", {
+    const filter = await callToolJson(mcp.client, rawToolName("PUT", "/filters"), {
       body: {
         title: `mcp live filter ${suffix}`,
         description: "Live smoke test filter",
@@ -82,7 +92,7 @@ test(
 
     const duplicatedTask = await callToolJson(
       mcp.client,
-      "vikunja_api_put_tasks_task_id_duplicate",
+      rawToolName("PUT", "/tasks/{taskID}/duplicate"),
       {
         task_id: task.id
       }
@@ -91,7 +101,7 @@ test(
 
     const view = await callToolJson(
       mcp.client,
-      "vikunja_api_put_projects_project_views",
+      rawToolName("PUT", "/projects/{project}/views"),
       {
         project: createdProjectId,
         body: {
@@ -105,7 +115,7 @@ test(
 
     const uploadResult = await callToolJson(
       mcp.client,
-      "vikunja_api_put_tasks_id_attachments",
+      rawToolName("PUT", "/tasks/{id}/attachments"),
       {
         id: task.id,
         form: {
@@ -126,7 +136,7 @@ test(
 
     const attachments = await callToolJson(
       mcp.client,
-      "vikunja_api_get_tasks_id_attachments",
+      rawToolName("GET", "/tasks/{id}/attachments"),
       {
         id: task.id,
         page: 1,
@@ -147,6 +157,12 @@ test(
     assert.equal(mcp.stderr.trim(), "");
   }
 );
+
+function rawToolName(method, path) {
+  const toolName = RAW_TOOL_NAMES_BY_OPERATION.get(method + " " + path);
+  assert.ok(toolName, `Missing generated raw tool for ${method} ${path}`);
+  return toolName;
+}
 
 async function startMcpClient(overrides) {
   const transport = new StdioClientTransport({

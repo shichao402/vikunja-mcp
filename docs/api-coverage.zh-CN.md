@@ -19,7 +19,7 @@
 两类工具并存：
 
 - 易用工具：围绕项目、任务、标签、评论做了更贴近模型调用习惯的参数设计
-- 原始工具：逐个映射 Swagger operation，命名规则为 `vikunja_api_<method>_<path>`
+- 原始工具：逐个映射 Swagger operation，命名规则为短的 `vikunja_api_<method>_<resource>_<hash12>` 标识符
 
 ## 易用工具
 
@@ -51,21 +51,21 @@
 
 | REST Operation | MCP Tool |
 | --- | --- |
-| `PUT /filters` | `vikunja_api_put_filters` |
-| `POST /tasks/bulk` | `vikunja_api_post_tasks_bulk` |
-| `PUT /tasks/{taskID}/relations` | `vikunja_api_put_tasks_task_id_relations` |
-| `PUT /projects/{project}/views` | `vikunja_api_put_projects_project_views` |
-| `PUT /tasks/{id}/attachments` | `vikunja_api_put_tasks_id_attachments` |
-| `GET /tasks/{id}/attachments/{attachmentID}` | `vikunja_api_get_tasks_id_attachments_attachment_id` |
-| `PUT /user/settings/avatar/upload` | `vikunja_api_put_user_settings_avatar_upload` |
-| `POST /shares/{share}/auth` | `vikunja_api_post_shares_share_auth` |
+| `PUT /filters` | `vikunja_api_put_filters_dac0a4e19aa2` |
+| `POST /tasks/bulk` | `vikunja_api_post_tasks_2ca74cd58ce3` |
+| `PUT /tasks/{taskID}/relations` | `vikunja_api_put_tasks_6293a01ae4e2` |
+| `PUT /projects/{project}/views` | `vikunja_api_put_projects_18c03cfa3b5a` |
+| `PUT /tasks/{id}/attachments` | `vikunja_api_put_tasks_25d391326d4f` |
+| `GET /tasks/{id}/attachments/{attachmentID}` | `vikunja_api_get_tasks_f038453ed58c` |
+| `PUT /user/settings/avatar/upload` | `vikunja_api_put_user_05b2c0bba8e2` |
+| `POST /shares/{share}/auth` | `vikunja_api_post_shares_5d6ccf52a1d9` |
 
 命名规则：
 
 - 前缀固定为 `vikunja_api_`
 - HTTP method 转成小写后拼进名字
-- 路径中的 `/` 转 `_`
-- 路径参数去掉花括号，并统一转成 snake_case
+- 使用第一个规范化后的路径段作为资源提示
+- 对规范 operation key `METHOD path` 取 SHA-256 后截取前 12 位十六进制字符
 
 ## 参数与返回约定
 
