@@ -151,8 +151,13 @@ node dist/index.js --help
 
 The package is intentionally distributed via `npx` because that is the lowest-friction path for MCP clients.
 
-```bash
-npm publish
-```
+Publishing is automated through GitHub Actions, not local `npm publish`:
+
+1. Update `package.json`, `package-lock.json`, and `CHANGELOG.md` for the new version.
+2. Commit the release metadata, for example `chore: release v0.5.0`.
+3. Create and push a matching `v*` tag, for example `v0.5.0`.
+4. The `Publish to npm` workflow publishes to npm via trusted publishing/OIDC.
+
+The workflow verifies that the pushed tag version matches `package.json` before publishing.
 
 GitHub repository: `https://github.com/shichao402/vikunja-mcp`

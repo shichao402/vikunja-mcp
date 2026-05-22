@@ -151,8 +151,13 @@ node dist/index.js --help
 
 当前仍然保留 `npx` 作为默认分发方式，因为它对 MCP 客户端的接入成本最低。
 
-```bash
-npm publish
-```
+发布通过 GitHub Actions 自动完成，不在本地直接执行 `npm publish`：
+
+1. 更新 `package.json`、`package-lock.json` 和 `CHANGELOG.md` 里的新版本信息。
+2. 提交 release 元数据，例如 `chore: release v0.5.0`。
+3. 创建并推送匹配的 `v*` tag，例如 `v0.5.0`。
+4. `Publish to npm` workflow 会通过 trusted publishing / OIDC 发布到 npm。
+
+该 workflow 会先校验 tag 版本是否和 `package.json` 中的版本一致，再执行发布。
 
 GitHub 仓库：`https://github.com/shichao402/vikunja-mcp`
