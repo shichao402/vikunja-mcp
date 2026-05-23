@@ -4,6 +4,7 @@ import { z } from "zod";
 
 const SUPPORTED_METHODS = ["get", "put", "post", "delete", "patch"] as const;
 const TOOL_NAME_HASH_LENGTH = 12;
+const TOOL_NAME_RESOURCE_LENGTH = 8;
 const METHODS_WITH_JSON_BODY = new Set(["PUT", "POST", "PATCH"]);
 const PUBLIC_OPERATION_KEYS = new Set([
   "POST /auth/openid/{provider}/callback",
@@ -182,18 +183,19 @@ function mergeParameters(
 }
 
 function buildToolName(method: SwaggerMethod, path: string): string {
-  const resource =
+  const resource = (
     path
       .split("/")
       .filter(Boolean)
-      .map(segment => sanitizeToolSegment(segment))[0] ?? "root";
+      .map(segment => sanitizeToolSegment(segment))[0] ?? "root"
+  ).slice(0, TOOL_NAME_RESOURCE_LENGTH);
   const operationKey = method + " " + path;
   const hash = createHash("sha256")
     .update(operationKey)
     .digest("hex")
     .slice(0, TOOL_NAME_HASH_LENGTH);
 
-  return ["vikunja", "api", method.toLowerCase(), resource, hash].join("_");
+  return ["vk", method.toLowerCase(), resource, hash].join("_");
 }
 
 function sanitizeToolSegment(segment: string): string {

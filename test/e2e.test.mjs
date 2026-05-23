@@ -46,8 +46,10 @@ const swaggerDocument = JSON.parse(
 );
 const GENERATED_TOOL_SPECS = getGeneratedToolSpecs(swaggerDocument);
 const GENERATED_TOOL_NAMES = GENERATED_TOOL_SPECS.map(spec => spec.toolName);
-const GENERATED_TOOL_NAME_PATTERN = /^vikunja_api_(get|put|post|delete|patch)_[a-z0-9_]+_[a-f0-9]{12}$/;
-const MAX_GENERATED_TOOL_NAME_LENGTH = 48;
+const GENERATED_TOOL_NAME_PATTERN = /^vk_(get|put|post|delete|patch)_[a-z0-9_]{1,8}_[a-f0-9]{12}$/;
+const MAX_GENERATED_TOOL_NAME_LENGTH = 32;
+const MCP_TOOL_NAME_PREFIX = "mcp__dec-vikunja-mcp__";
+const MAX_TOOL_SPEC_NAME_LENGTH = 64;
 const ALL_TOOL_NAMES = [...new Set([...LEGACY_TOOL_NAMES, ...GENERATED_TOOL_NAMES])];
 const PUBLIC_GENERATED_TOOLS = GENERATED_TOOL_SPECS.filter(
   spec => !spec.authRequired
@@ -443,6 +445,10 @@ test("generated raw tool names are compact and unique", () => {
     assert.ok(
       toolName.length <= MAX_GENERATED_TOOL_NAME_LENGTH,
       `Generated tool name is too long: ${toolName}`
+    );
+    assert.ok(
+      (MCP_TOOL_NAME_PREFIX + toolName).length <= MAX_TOOL_SPEC_NAME_LENGTH,
+      `Generated tool name is too long with MCP prefix: ${toolName}`
     );
   }
 });
