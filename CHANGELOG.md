@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-05-23
+
 ### Fixed
 
 - Keep generated raw REST tool names at 32 characters or fewer by using `vk_<method>_<resource>_<hash12>` names with an 8-character resource hint. This leaves room for MCP client prefixes such as `mcp__dec-vikunja-mcp__` under 64-character tool-name limits.
@@ -44,7 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 See the [git history](https://github.com/shichao402/vikunja-mcp/commits/main) for changes prior to this changelog.
 
-[Unreleased]: https://github.com/shichao402/vikunja-mcp/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/shichao402/vikunja-mcp/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/shichao402/vikunja-mcp/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/shichao402/vikunja-mcp/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/shichao402/vikunja-mcp/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/shichao402/vikunja-mcp/compare/v0.3.0...v0.3.1
