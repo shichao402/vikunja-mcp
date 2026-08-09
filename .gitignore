@@ -18,3 +18,6 @@ mise.local.toml
 # Dec local state (cache and pull metadata); only .dec/config.yaml and .dec/vars.yaml are tracked
 .dec/cache/
 .dec/.version
+
+# Dec secrets sync root (never commit)
+/.secrets/
