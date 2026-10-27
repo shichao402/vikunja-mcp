@@ -1,7 +1,0 @@
-# Dec 项目配置
-# 提示：请在 TUI Bundles 页勾选后按 s 保存。
-
-version: v2
-project_name: vikunja-mcp
-enabled_bundles:
-  - vikunja
